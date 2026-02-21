@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圖形旋轉重疊分析器</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --cell-size: 40px;
+            --grid-gap: 4px;
+            --highlight-100: #ff0000; /* 100% 重疊 */
+            --highlight-75: #ff6b6b;
+            --highlight-50: #ffbaba;
+            --highlight-25: #ffe3e3;
+            --cell-border: #ccc;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 { margin-bottom: 10px; }
+        .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; }
+
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 40px;
+            justify-content: center;
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(6, var(--cell-size));
+            grid-template-rows: repeat(6, var(--cell-size));
+            gap: var(--grid-gap);
+            margin-top: 10px;
+            background-color: #333;
+            padding: var(--grid-gap);
+            border-radius: 4px;
+            position: relative;
+        }
+
+        /* 座標軸標示 (簡易版) */
+        .grid-label {
+            position: absolute;
+            color: #999;
+            font-size: 10px;
+        }
+
+        .cell {
+            background-color: white;
+            width: var(--cell-size);
+            height: var(--cell-size);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            font-weight: bold;
+            user-select: none;
+            transition: background-color 0.1s;
+        }
+
+        /* 輸入區樣式 */
+        .input-cell.active { background-color: #333; color: white; }
+
+        /* 結果區樣式 */
+        .result-cell[data-overlap="4"] { background-color: var(--highlight-100); color: white; border: 2px solid darkred; }
+        .result-cell[data-overlap="3"] { background-color: var(--highlight-75); }
+        .result-cell[data-overlap="2"] { background-color: var(--highlight-50); }
+        .result-cell[data-overlap="1"] { background-color: var(--highlight-25); }
+
+        .controls {
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        button.secondary { background-color: #6c757d; }
+        button.secondary:hover { background-color: #545b62; }
+
+        .info-box {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 4px;
+            width: 100%;
+            font-size: 0.9rem;
+        }
+
+        .small-grids {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .small-grid-wrapper { text-align: center; font-size: 0.8em; }
+        .small-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 10px);
+            grid-template-rows: repeat(6, 10px);
+            gap: 1px;
+            background: #ccc;
+            padding: 1px;
+        }
+        .small-cell { width: 10px; height: 10px; background: white; }
+        .small-cell.active { background: #333; }
+
+    </style>
+</head>
+<body>
+
+    <h1>圖形旋轉重疊分析器</h1>
+    <div class="subtitle">點擊左側格子設定「0度」圖形，右側將顯示必定出現的區域 (紅色)</div>
+
+    <div class="container">
+        <div class="panel">
+            <h3>編輯區 (0度原始圖形)</h3>
+            <div class="grid-container" id="inputGrid">
+                </div>
+            <div style="margin-top: 10px;">
+                <button onclick="clearGrid()" class="secondary">清空</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3>分析結果</h3>
+            <div class="grid-container" id="resultGrid">
+                </div>
+            <div class="info-box" id="resultText">
+                請在左側繪製圖形...
+            </div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top: 20px; width: 90%; max-width: 800px;">
+        <h3>各角度預覽</h3>
+        <div class="small-grids">
+            <div class="small-grid-wrapper">0°<div id="preview0" class="small-grid"></div></div>
+            <div class="small-grid-wrapper">90°<div id="preview90" class="small-grid"></div></div>
+            <div class="small-grid-wrapper">180°<div id="preview180" class="small-grid"></div></div>
+            <div class="small-grid-wrapper">270°<div id="preview270" class="small-grid"></div></div>
+        </div>
+
+        <hr style="width:100%; margin: 20px 0; border:0; border-top:1px solid #eee;">
+
+        <h3>圖形資料庫 (JSON)</h3>
+        <div class="controls">
+            <p style="font-size: 0.85em; color: #666;">格式說明：{"代碼": [[x1,y1], [x2,y2]...] }，座標為 1-6 (左下角為 1,1)</p>
+            <textarea id="dbInput" placeholder='範例格式: {"230": [[5,3], [6,3], [1,6], [2,6], [3,6], [4,6], [1,5], [2,5], [3,5], [4,5], [1,4], [2,4], [3,4], [4,4]]}'></textarea>
+            <div style="display:flex; gap:10px; align-items: center;">
+                <input type="text" id="loadCode" placeholder="輸入代碼 (如 230)" style="padding: 8px; width: 120px;">
+                <button onclick="loadFromDB()">載入圖形</button>
+                <button onclick="exportToDB()" class="secondary">將目前圖形轉為 JSON</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GRID_SIZE = 6;
+        // 儲存目前 0 度的座標點 Set<string> "x,y"
+        let activePoints = new Set();
+
+        function init() {
+            createGrid('inputGrid', true);
+            createGrid('resultGrid', false);
+            createSmallGrids();
+        }
+
+        // 建立 6x6 網格
+        function createGrid(elementId, isInteractive) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = '';
+
+            // 由於 CSS Grid 是從左上排到右下，但數學座標習慣左下是 (1,1)
+            // 所以我們 loop row 從 6 到 1 (Y軸)，col 從 1 到 6 (X軸)
+            for (let y = GRID_SIZE; y >= 1; y--) {
+                for (let x = 1; x <= GRID_SIZE; x++) {
+                    const div = document.createElement('div');
+                    div.className = isInteractive ? 'cell input-cell' : 'cell result-cell';
+                    div.dataset.x = x;
+                    div.dataset.y = y;
+
+                    if (isInteractive) {
+                        div.onclick = () => togglePoint(x, y, div);
+                    }
+
+                    // 加上 tooltip
+                    div.title = `(${x}, ${y})`;
+                    container.appendChild(div);
+                }
+            }
+        }
+
+        function createSmallGrids() {
+            const ids = ['preview0', 'preview90', 'preview180', 'preview270'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                el.innerHTML = '';
+                for (let i = 0; i < 36; i++) {
+                    const div = document.createElement('div');
+                    div.className = 'small-cell';
+                    el.appendChild(div);
+                }
+            });
+        }
+
+        // 點擊切換狀態
+        function togglePoint(x, y, element) {
+            const key = `${x},${y}`;
+            if (activePoints.has(key)) {
+                activePoints.delete(key);
+                element.classList.remove('active');
+            } else {
+                activePoints.add(key);
+                element.classList.add('active');
+            }
+            calculateOverlap();
+        }
+
+        function clearGrid() {
+            activePoints.clear();
+            document.querySelectorAll('.input-cell').forEach(el => el.classList.remove('active'));
+            calculateOverlap();
+        }
+
+        // 核心邏輯：座標旋轉
+        // 輸入 (x, y) 1~6, 順時針旋轉 90 度
+        // 公式： x' = y, y' = N + 1 - x
+        function rotatePoint(x, y) {
+            return {
+                x: y,
+                y: GRID_SIZE + 1 - x
+            };
+        }
+
+        function calculateOverlap() {
+            // 1. 取得 0 度座標陣列
+            let points0 = [];
+            activePoints.forEach(p => {
+                const [x, y] = p.split(',').map(Number);
+                points0.push({x, y});
+            });
+
+            if (points0.length === 0) {
+                resetResult();
+                return;
+            }
+
+            // 2. 計算 90, 180, 270
+            let points90 = points0.map(p => rotatePoint(p.x, p.y));
+            let points180 = points90.map(p => rotatePoint(p.x, p.y));
+            let points270 = points180.map(p => rotatePoint(p.x, p.y));
+
+            const allRotations = [points0, points90, points180, points270];
+
+            // 3. 更新小預覽圖
+            updateSmallPreviews(allRotations);
+
+            // 4. 計算重疊頻率
+            // 使用 Map 紀錄每個座標出現的次數
+            let frequency = {};
+            // 初始化 key
+            for(let y=1; y<=6; y++) for(let x=1; x<=6; x++) frequency[`${x},${y}`] = 0;
+
+            allRotations.forEach(rotation => {
+                rotation.forEach(p => {
+                    frequency[`${p.x},${p.y}`]++;
+                });
+            });
+
+            // 5. 渲染結果
+            const resultCells = document.querySelectorAll('.result-cell');
+            let maxOverlapCoords = [];
+
+            resultCells.forEach(cell => {
+                const x = cell.dataset.x;
+                const y = cell.dataset.y;
+                const count = frequency[`${x},${y}`];
+
+                cell.dataset.overlap = count; // 用於 CSS 上色
+                cell.textContent = count > 0 ? count : ''; // 顯示數字
+
+                if (count === 4) {
+                    maxOverlapCoords.push(`(${x},${y})`);
+                }
+            });
+
+            // 6. 更新文字結果
+            const resultText = document.getElementById('resultText');
+            if (maxOverlapCoords.length > 0) {
+                resultText.innerHTML = `<strong>必中座標 (100%重疊)：</strong><br>${maxOverlapCoords.join(', ')}`;
+                resultText.style.color = "darkred";
+            } else {
+                resultText.innerHTML = "沒有 100% 重疊的點。請嘗試點擊深色區域。";
+                resultText.style.color = "#333";
+            }
+        }
+
+        function updateSmallPreviews(rotations) {
+            const ids = ['preview0', 'preview90', 'preview180', 'preview270'];
+            rotations.forEach((points, index) => {
+                const container = document.getElementById(ids[index]);
+                const cells = container.children;
+                // 清空
+                for(let c of cells) c.className = 'small-cell';
+
+                points.forEach(p => {
+                    // 將 x,y 轉換回 grid index (row 0 is y=6, col 0 is x=1)
+                    // index = (6 - y) * 6 + (x - 1)
+                    const idx = (GRID_SIZE - p.y) * GRID_SIZE + (p.x - 1);
+                    if (cells[idx]) cells[idx].classList.add('active');
+                });
+            });
+        }
+
+        function resetResult() {
+            document.querySelectorAll('.result-cell').forEach(c => {
+                c.dataset.overlap = 0;
+                c.textContent = '';
+            });
+            document.getElementById('resultText').textContent = "請在左側繪製圖形...";
+            updateSmallPreviews([[],[],[],[]]);
+        }
+
+        // --- 資料庫功能 ---
+
+        function exportToDB() {
+            let coords = [];
+            activePoints.forEach(p => {
+                const [x, y] = p.split(',').map(Number);
+                coords.push([x, y]);
+            });
+            const output = JSON.stringify({ "自訂代碼": coords });
+            document.getElementById('dbInput').value = output;
+        }
+
+        function loadFromDB() {
+            const jsonStr = document.getElementById('dbInput').value;
+            const code = document.getElementById('loadCode').value.trim();
+
+            if (!jsonStr) return alert("請先輸入資料庫 JSON");
+            if (!code) return alert("請輸入要載入的代碼");
+
+            try {
+                const db = JSON.parse(jsonStr);
+                const data = db[code];
+
+                if (!data) return alert(`找不到代碼 ${code}`);
+
+                clearGrid();
+                const cells = document.querySelectorAll('.input-cell');
+
+                data.forEach(pt => {
+                    // 支援 [x, y] 陣列格式
+                    const x = pt[0];
+                    const y = pt[1];
+                    // 找到對應的 DOM 觸發點擊或直接設定
+                    const selector = `.input-cell[data-x="${x}"][data-y="${y}"]`;
+                    const cell = document.querySelector(selector);
+                    if (cell) {
+                        activePoints.add(`${x},${y}`);
+                        cell.classList.add('active');
+                    }
+                });
+                calculateOverlap();
+
+            } catch (e) {
+                alert("JSON 格式錯誤");
+                console.error(e);
+            }
+        }
+
+        // 初始化
+        init();
+
+        // 預先載入使用者的範例 230
+        const exampleData = {
+            "230": [
+                [5,3], [6,3], // 圖案 2
+                [3,1], [4,1], [5,1], // 圖案 3
+                [1,6], [2,6], [3,6], [4,6],
+                [1,5], [2,5], [3,5], [4,5],
+                [1,4], [2,4], [3,4], [4,4] // 圖案 0
+            ]
+        };
+        document.getElementById('dbInput').value = JSON.stringify(exampleData);
+        document.getElementById('loadCode').value = "230";
+        // 自動載入一次
+        setTimeout(loadFromDB, 500);
+
+    </script>
+</body>
+</html>
