@@ -3,17 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>圖形旋轉重疊分析器</title>
+    <title>圖形旋轉重疊分析器 (具備本地儲存)</title>
     <style>
         :root {
             --bg-color: #f0f2f5;
             --cell-size: 40px;
             --grid-gap: 4px;
-            --highlight-100: #ff0000; /* 100% 重疊 */
+            --highlight-100: #ff0000;
             --highlight-75: #ff6b6b;
             --highlight-50: #ffbaba;
             --highlight-25: #ffe3e3;
-            --cell-border: #ccc;
         }
 
         body {
@@ -25,14 +24,16 @@
             padding: 20px;
         }
 
-        h1 { margin-bottom: 10px; }
+        h1 { margin-bottom: 5px; }
         .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; }
 
         .container {
             display: flex;
             flex-wrap: wrap;
-            gap: 40px;
+            gap: 20px;
             justify-content: center;
+            max-width: 1000px;
+            width: 100%;
         }
 
         .panel {
@@ -43,6 +44,8 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            flex: 1;
+            min-width: 300px;
         }
 
         .grid-container {
@@ -54,14 +57,6 @@
             background-color: #333;
             padding: var(--grid-gap);
             border-radius: 4px;
-            position: relative;
-        }
-
-        /* 座標軸標示 (簡易版) */
-        .grid-label {
-            position: absolute;
-            color: #999;
-            font-size: 10px;
         }
 
         .cell {
@@ -77,151 +72,129 @@
             user-select: none;
             transition: background-color 0.1s;
         }
-
-        /* 輸入區樣式 */
+        
         .input-cell.active { background-color: #333; color: white; }
-
-        /* 結果區樣式 */
+        
         .result-cell[data-overlap="4"] { background-color: var(--highlight-100); color: white; border: 2px solid darkred; }
         .result-cell[data-overlap="3"] { background-color: var(--highlight-75); }
         .result-cell[data-overlap="2"] { background-color: var(--highlight-50); }
         .result-cell[data-overlap="1"] { background-color: var(--highlight-25); }
 
-        .controls {
-            margin-top: 20px;
-            width: 100%;
-        }
+        .controls { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+        .row-controls { display: flex; gap: 10px; width: 100%; align-items: center; }
 
-        textarea {
-            width: 100%;
-            height: 100px;
-            margin-bottom: 10px;
-            font-family: monospace;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
+        input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex: 1; }
+        textarea { width: 100%; height: 80px; font-family: monospace; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;}
 
         button {
-            padding: 8px 16px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 5px;
+            padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; white-space: nowrap;
         }
         button:hover { background-color: #0056b3; }
         button.secondary { background-color: #6c757d; }
         button.secondary:hover { background-color: #545b62; }
+        button.danger { background-color: #dc3545; }
+        button.danger:hover { background-color: #bd2130; }
 
-        .info-box {
-            margin-top: 15px;
-            padding: 10px;
-            background: #e9ecef;
-            border-radius: 4px;
-            width: 100%;
-            font-size: 0.9rem;
+        .saved-list {
+            display: flex; flex-wrap: wrap; gap: 8px; width: 100%; margin-top: 10px;
+            max-height: 150px; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 6px; border: 1px solid #eee;
         }
+        .code-btn { background-color: #e2e8f0; color: #333; border: 1px solid #cbd5e1; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: monospace;}
+        .code-btn:hover { background-color: #cbd5e1; }
 
-        .small-grids {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
+        .info-box { margin-top: 15px; padding: 10px; background: #e9ecef; border-radius: 4px; width: 100%; font-size: 0.9rem; text-align: center; }
+
+        .small-grids { display: flex; gap: 10px; margin-top: 10px; justify-content: center;}
         .small-grid-wrapper { text-align: center; font-size: 0.8em; }
-        .small-grid {
-            display: grid;
-            grid-template-columns: repeat(6, 10px);
-            grid-template-rows: repeat(6, 10px);
-            gap: 1px;
-            background: #ccc;
-            padding: 1px;
-        }
-        .small-cell { width: 10px; height: 10px; background: white; }
+        .small-grid { display: grid; grid-template-columns: repeat(6, 8px); grid-template-rows: repeat(6, 8px); gap: 1px; background: #ccc; padding: 1px; }
+        .small-cell { width: 8px; height: 8px; background: white; }
         .small-cell.active { background: #333; }
-
     </style>
 </head>
 <body>
 
     <h1>圖形旋轉重疊分析器</h1>
-    <div class="subtitle">點擊左側格子設定「0度」圖形，右側將顯示必定出現的區域 (紅色)</div>
+    <div class="subtitle">所有儲存的資料都會保留在瀏覽器中</div>
 
     <div class="container">
         <div class="panel">
             <h3>編輯區 (0度原始圖形)</h3>
-            <div class="grid-container" id="inputGrid">
+            <div class="grid-container" id="inputGrid"></div>
+            
+            <div class="controls" style="margin-top: 15px;">
+                <div class="row-controls">
+                    <input type="text" id="currentCode" placeholder="輸入圖形代碼 (如 230)">
+                    <button onclick="saveCurrentShape()">儲存此圖形</button>
+                    <button onclick="clearGrid()" class="secondary">清空畫布</button>
                 </div>
-            <div style="margin-top: 10px;">
-                <button onclick="clearGrid()" class="secondary">清空</button>
             </div>
+
+            <h3 style="margin-top: 20px; font-size: 1.1em;">已儲存的圖形 (點擊直接載入)</h3>
+            <div class="saved-list" id="savedCodeList">
+                </div>
         </div>
 
         <div class="panel">
             <h3>分析結果</h3>
-            <div class="grid-container" id="resultGrid">
-                </div>
-            <div class="info-box" id="resultText">
-                請在左側繪製圖形...
+            <div class="grid-container" id="resultGrid"></div>
+            <div class="info-box" id="resultText">請在左側繪製或載入圖形...</div>
+
+            <h3 style="margin-top: 15px; font-size: 1em;">各角度預覽</h3>
+            <div class="small-grids">
+                <div class="small-grid-wrapper">0°<div id="preview0" class="small-grid"></div></div>
+                <div class="small-grid-wrapper">90°<div id="preview90" class="small-grid"></div></div>
+                <div class="small-grid-wrapper">180°<div id="preview180" class="small-grid"></div></div>
+                <div class="small-grid-wrapper">270°<div id="preview270" class="small-grid"></div></div>
             </div>
         </div>
     </div>
 
-    <div class="panel" style="margin-top: 20px; width: 90%; max-width: 800px;">
-        <h3>各角度預覽</h3>
-        <div class="small-grids">
-            <div class="small-grid-wrapper">0°<div id="preview0" class="small-grid"></div></div>
-            <div class="small-grid-wrapper">90°<div id="preview90" class="small-grid"></div></div>
-            <div class="small-grid-wrapper">180°<div id="preview180" class="small-grid"></div></div>
-            <div class="small-grid-wrapper">270°<div id="preview270" class="small-grid"></div></div>
-        </div>
-
-        <hr style="width:100%; margin: 20px 0; border:0; border-top:1px solid #eee;">
-
-        <h3>圖形資料庫 (JSON)</h3>
+    <div class="panel" style="margin-top: 20px; width: 90%; max-width: 1000px;">
+        <h3>批次管理 / JSON 備份</h3>
         <div class="controls">
-            <p style="font-size: 0.85em; color: #666;">格式說明：{"代碼": [[x1,y1], [x2,y2]...] }，座標為 1-6 (左下角為 1,1)</p>
-            <textarea id="dbInput" placeholder='範例格式: {"230": [[5,3], [6,3], [1,6], [2,6], [3,6], [4,6], [1,5], [2,5], [3,5], [4,5], [1,4], [2,4], [3,4], [4,4]]}'></textarea>
-            <div style="display:flex; gap:10px; align-items: center;">
-                <input type="text" id="loadCode" placeholder="輸入代碼 (如 230)" style="padding: 8px; width: 120px;">
-                <button onclick="loadFromDB()">載入圖形</button>
-                <button onclick="exportToDB()" class="secondary">將目前圖形轉為 JSON</button>
+            <p style="font-size: 0.85em; color: #666; margin: 0;">可以將你手邊的資料庫貼入此處「批次匯入」，或者「匯出所有資料」做備份。</p>
+            <textarea id="dbTextarea" placeholder='{"代碼": [[x1,y1], [x2,y2]...] }'></textarea>
+            <div class="row-controls">
+                <button onclick="importJSON()">從文字框批次匯入</button>
+                <button onclick="exportJSON()" class="secondary">匯出所有資料到文字框</button>
+                <div style="flex:1"></div>
+                <button onclick="clearDatabase()" class="danger">清空所有儲存的資料</button>
             </div>
         </div>
     </div>
 
     <script>
         const GRID_SIZE = 6;
-        // 儲存目前 0 度的座標點 Set<string> "x,y"
         let activePoints = new Set();
+        // 核心：從 localStorage 讀取資料庫，若無則為空物件
+        let shapeDatabase = JSON.parse(localStorage.getItem('rotateShapeDB')) || {};
 
         function init() {
             createGrid('inputGrid', true);
             createGrid('resultGrid', false);
             createSmallGrids();
+            updateSavedListUI();
+            
+            // 如果剛好沒有資料，放個範例進去
+            if(Object.keys(shapeDatabase).length === 0) {
+                const exampleData = {
+                    "230": [[5,3], [6,3], [3,1], [4,1], [5,1], [1,6], [2,6], [3,6], [4,6], [1,5], [2,5], [3,5], [4,5], [1,4], [2,4], [3,4], [4,4]]
+                };
+                Object.assign(shapeDatabase, exampleData);
+                saveDatabase();
+            }
         }
 
-        // 建立 6x6 網格
+        // 網格建立邏輯
         function createGrid(elementId, isInteractive) {
             const container = document.getElementById(elementId);
             container.innerHTML = '';
-
-            // 由於 CSS Grid 是從左上排到右下，但數學座標習慣左下是 (1,1)
-            // 所以我們 loop row 從 6 到 1 (Y軸)，col 從 1 到 6 (X軸)
             for (let y = GRID_SIZE; y >= 1; y--) {
                 for (let x = 1; x <= GRID_SIZE; x++) {
                     const div = document.createElement('div');
                     div.className = isInteractive ? 'cell input-cell' : 'cell result-cell';
-                    div.dataset.x = x;
-                    div.dataset.y = y;
-
-                    if (isInteractive) {
-                        div.onclick = () => togglePoint(x, y, div);
-                    }
-
-                    // 加上 tooltip
-                    div.title = `(${x}, ${y})`;
+                    div.dataset.x = x; div.dataset.y = y;
+                    if (isInteractive) div.onclick = () => togglePoint(x, y, div);
                     container.appendChild(div);
                 }
             }
@@ -230,104 +203,67 @@
         function createSmallGrids() {
             const ids = ['preview0', 'preview90', 'preview180', 'preview270'];
             ids.forEach(id => {
-                const el = document.getElementById(id);
-                el.innerHTML = '';
+                const el = document.getElementById(id); el.innerHTML = '';
                 for (let i = 0; i < 36; i++) {
                     const div = document.createElement('div');
-                    div.className = 'small-cell';
-                    el.appendChild(div);
+                    div.className = 'small-cell'; el.appendChild(div);
                 }
             });
         }
 
-        // 點擊切換狀態
         function togglePoint(x, y, element) {
             const key = `${x},${y}`;
-            if (activePoints.has(key)) {
-                activePoints.delete(key);
-                element.classList.remove('active');
-            } else {
-                activePoints.add(key);
-                element.classList.add('active');
-            }
+            if (activePoints.has(key)) { activePoints.delete(key); element.classList.remove('active'); } 
+            else { activePoints.add(key); element.classList.add('active'); }
             calculateOverlap();
         }
 
         function clearGrid() {
             activePoints.clear();
             document.querySelectorAll('.input-cell').forEach(el => el.classList.remove('active'));
+            document.getElementById('currentCode').value = "";
             calculateOverlap();
         }
 
-        // 核心邏輯：座標旋轉
-        // 輸入 (x, y) 1~6, 順時針旋轉 90 度
-        // 公式： x' = y, y' = N + 1 - x
-        function rotatePoint(x, y) {
-            return {
-                x: y,
-                y: GRID_SIZE + 1 - x
-            };
-        }
+        function rotatePoint(x, y) { return { x: y, y: GRID_SIZE + 1 - x }; }
 
         function calculateOverlap() {
-            // 1. 取得 0 度座標陣列
-            let points0 = [];
-            activePoints.forEach(p => {
-                const [x, y] = p.split(',').map(Number);
-                points0.push({x, y});
+            let points0 = Array.from(activePoints).map(p => {
+                const [x, y] = p.split(',').map(Number); return {x, y};
             });
 
             if (points0.length === 0) {
-                resetResult();
-                return;
+                resetResult(); return;
             }
 
-            // 2. 計算 90, 180, 270
             let points90 = points0.map(p => rotatePoint(p.x, p.y));
             let points180 = points90.map(p => rotatePoint(p.x, p.y));
             let points270 = points180.map(p => rotatePoint(p.x, p.y));
 
             const allRotations = [points0, points90, points180, points270];
-
-            // 3. 更新小預覽圖
             updateSmallPreviews(allRotations);
 
-            // 4. 計算重疊頻率
-            // 使用 Map 紀錄每個座標出現的次數
-            let frequency = {};
-            // 初始化 key
+            let frequency = {}; 
             for(let y=1; y<=6; y++) for(let x=1; x<=6; x++) frequency[`${x},${y}`] = 0;
+            allRotations.forEach(rot => rot.forEach(p => frequency[`${p.x},${p.y}`]++));
 
-            allRotations.forEach(rotation => {
-                rotation.forEach(p => {
-                    frequency[`${p.x},${p.y}`]++;
-                });
-            });
-
-            // 5. 渲染結果
             const resultCells = document.querySelectorAll('.result-cell');
             let maxOverlapCoords = [];
 
             resultCells.forEach(cell => {
-                const x = cell.dataset.x;
-                const y = cell.dataset.y;
+                const x = cell.dataset.x, y = cell.dataset.y;
                 const count = frequency[`${x},${y}`];
-
-                cell.dataset.overlap = count; // 用於 CSS 上色
-                cell.textContent = count > 0 ? count : ''; // 顯示數字
-
-                if (count === 4) {
-                    maxOverlapCoords.push(`(${x},${y})`);
-                }
+                cell.dataset.overlap = count;
+                cell.textContent = count > 0 ? count : '';
+                if (count === 4) maxOverlapCoords.push(`(${x},${y})`);
             });
 
-            // 6. 更新文字結果
             const resultText = document.getElementById('resultText');
             if (maxOverlapCoords.length > 0) {
                 resultText.innerHTML = `<strong>必中座標 (100%重疊)：</strong><br>${maxOverlapCoords.join(', ')}`;
                 resultText.style.color = "darkred";
             } else {
-                resultText.innerHTML = "沒有 100% 重疊的點。請嘗試點擊深色區域。";
+                resultText.innerHTML = "沒有 100% 重疊的點。";
                 resultText.style.color = "#333";
             }
         }
@@ -335,14 +271,9 @@
         function updateSmallPreviews(rotations) {
             const ids = ['preview0', 'preview90', 'preview180', 'preview270'];
             rotations.forEach((points, index) => {
-                const container = document.getElementById(ids[index]);
-                const cells = container.children;
-                // 清空
+                const cells = document.getElementById(ids[index]).children;
                 for(let c of cells) c.className = 'small-cell';
-
                 points.forEach(p => {
-                    // 將 x,y 轉換回 grid index (row 0 is y=6, col 0 is x=1)
-                    // index = (6 - y) * 6 + (x - 1)
                     const idx = (GRID_SIZE - p.y) * GRID_SIZE + (p.x - 1);
                     if (cells[idx]) cells[idx].classList.add('active');
                 });
@@ -350,79 +281,114 @@
         }
 
         function resetResult() {
-            document.querySelectorAll('.result-cell').forEach(c => {
-                c.dataset.overlap = 0;
-                c.textContent = '';
-            });
-            document.getElementById('resultText').textContent = "請在左側繪製圖形...";
+            document.querySelectorAll('.result-cell').forEach(c => { c.dataset.overlap = 0; c.textContent = ''; });
+            document.getElementById('resultText').textContent = "請在左側繪製或載入圖形...";
             updateSmallPreviews([[],[],[],[]]);
         }
 
-        // --- 資料庫功能 ---
+        // ================= 資料庫與本地儲存功能 =================
 
-        function exportToDB() {
-            let coords = [];
-            activePoints.forEach(p => {
-                const [x, y] = p.split(',').map(Number);
-                coords.push([x, y]);
-            });
-            const output = JSON.stringify({ "自訂代碼": coords });
-            document.getElementById('dbInput').value = output;
+        function saveDatabase() {
+            localStorage.setItem('rotateShapeDB', JSON.stringify(shapeDatabase));
+            updateSavedListUI();
         }
 
-        function loadFromDB() {
-            const jsonStr = document.getElementById('dbInput').value;
-            const code = document.getElementById('loadCode').value.trim();
+        function updateSavedListUI() {
+            const listEl = document.getElementById('savedCodeList');
+            listEl.innerHTML = '';
+            const codes = Object.keys(shapeDatabase).sort();
+            
+            if (codes.length === 0) {
+                listEl.innerHTML = '<span style="color:#999; font-size: 0.9em;">目前沒有儲存的圖形</span>';
+                return;
+            }
 
-            if (!jsonStr) return alert("請先輸入資料庫 JSON");
-            if (!code) return alert("請輸入要載入的代碼");
-
-            try {
-                const db = JSON.parse(jsonStr);
-                const data = db[code];
-
-                if (!data) return alert(`找不到代碼 ${code}`);
-
-                clearGrid();
-                const cells = document.querySelectorAll('.input-cell');
-
-                data.forEach(pt => {
-                    // 支援 [x, y] 陣列格式
-                    const x = pt[0];
-                    const y = pt[1];
-                    // 找到對應的 DOM 觸發點擊或直接設定
-                    const selector = `.input-cell[data-x="${x}"][data-y="${y}"]`;
-                    const cell = document.querySelector(selector);
-                    if (cell) {
-                        activePoints.add(`${x},${y}`);
-                        cell.classList.add('active');
+            codes.forEach(code => {
+                const btn = document.createElement('button');
+                btn.className = 'code-btn';
+                btn.textContent = code;
+                btn.onclick = () => loadShapeByCode(code);
+                // 加上右鍵可以刪除的提示
+                btn.oncontextmenu = (e) => {
+                    e.preventDefault();
+                    if(confirm(`確定要刪除代碼 [ ${code} ] 的圖形嗎？`)) {
+                        delete shapeDatabase[code];
+                        saveDatabase();
                     }
-                });
-                calculateOverlap();
+                };
+                listEl.appendChild(btn);
+            });
+        }
 
+        function saveCurrentShape() {
+            const code = document.getElementById('currentCode').value.trim();
+            if (!code) return alert("請先輸入圖形代碼！");
+            if (activePoints.size === 0) return alert("畫布是空的，無法儲存！");
+
+            const coords = Array.from(activePoints).map(p => {
+                const [x, y] = p.split(',').map(Number);
+                return [x, y];
+            });
+
+            shapeDatabase[code] = coords;
+            saveDatabase();
+            
+            // 提示一下效果
+            const btn = document.querySelector(`button[onclick="saveCurrentShape()"]`);
+            const oldText = btn.textContent;
+            btn.textContent = "儲存成功！";
+            btn.style.backgroundColor = "#28a745";
+            setTimeout(() => { btn.textContent = oldText; btn.style.backgroundColor = ""; }, 1500);
+        }
+
+        function loadShapeByCode(code) {
+            const data = shapeDatabase[code];
+            if (!data) return;
+
+            clearGrid(); // 先清空當前畫面
+            document.getElementById('currentCode').value = code;
+
+            data.forEach(pt => {
+                const x = pt[0], y = pt[1];
+                const cell = document.querySelector(`.input-cell[data-x="${x}"][data-y="${y}"]`);
+                if (cell) {
+                    activePoints.add(`${x},${y}`);
+                    cell.classList.add('active');
+                }
+            });
+            calculateOverlap();
+        }
+
+        function importJSON() {
+            const jsonStr = document.getElementById('dbTextarea').value;
+            if (!jsonStr) return alert("文字框是空的！");
+            try {
+                const newDb = JSON.parse(jsonStr);
+                // 合併資料
+                Object.assign(shapeDatabase, newDb);
+                saveDatabase();
+                alert("批次匯入成功！");
+                document.getElementById('dbTextarea').value = ""; // 匯入後清空
             } catch (e) {
-                alert("JSON 格式錯誤");
-                console.error(e);
+                alert("JSON 格式錯誤，請檢查語法。\n" + e.message);
             }
         }
 
-        // 初始化
-        init();
+        function exportJSON() {
+            document.getElementById('dbTextarea').value = JSON.stringify(shapeDatabase, null, 2);
+        }
 
-        // 預先載入使用者的範例 230
-        const exampleData = {
-            "230": [
-                [5,3], [6,3], // 圖案 2
-                [3,1], [4,1], [5,1], // 圖案 3
-                [1,6], [2,6], [3,6], [4,6],
-                [1,5], [2,5], [3,5], [4,5],
-                [1,4], [2,4], [3,4], [4,4] // 圖案 0
-            ]
-        };
-        document.getElementById('dbInput').value = JSON.stringify(exampleData);
-        document.getElementById('loadCode').value = "230";
-        // 自動載入一次
-        setTimeout(loadFromDB, 500);
+        function clearDatabase() {
+            if (confirm("警告：這將會清除您瀏覽器中所有已儲存的圖形，確定要繼續嗎？")) {
+                shapeDatabase = {};
+                saveDatabase();
+                clearGrid();
+                document.getElementById('dbTextarea').value = "";
+            }
+        }
+
+        // 啟動
+        init();
 
     </script>
 </body>
