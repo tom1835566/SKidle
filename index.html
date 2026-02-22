@@ -22,16 +22,14 @@
         .tab-content.active { display: flex; }
 
         .panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 340px; }
-
+        
         .grid-container { display: grid; grid-template-columns: repeat(6, var(--cell-size)); grid-template-rows: repeat(6, var(--cell-size)); gap: var(--grid-gap); background-color: #333; padding: var(--grid-gap); border-radius: 4px; margin: 15px 0; }
         .cell { background-color: white; width: var(--cell-size); height: var(--cell-size); cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; user-select: none; }
-
-        /* 網格狀態顏色 */
+        
         .cell[data-state="X"] { background-color: var(--miss-color); color: #888; }
         .cell[data-state="O"] { background-color: #444; color: white; }
         .cell[data-state="0"], .cell[data-state="1"], .cell[data-state="2"], .cell[data-state="3"] { background-color: #0056b3; color: white; }
-
-        /* 熱區顏色 */
+        
         .heatmap-cell[data-prob="100"] { border: 3px solid darkred; background-color: var(--highlight-100); color: white; }
         .heatmap-cell[data-prob="high"] { background-color: var(--highlight-75); }
         .heatmap-cell[data-prob="med"] { background-color: var(--highlight-50); }
@@ -39,22 +37,27 @@
 
         .controls, .row-controls { display: flex; gap: 10px; width: 100%; align-items: center; flex-wrap: wrap; justify-content: center;}
         input[type="text"], textarea { padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;}
-        textarea { height: 120px; font-family: monospace; resize: vertical; width: 100%;}
-
+        textarea { height: 200px; font-family: monospace; resize: vertical; width: 100%; white-space: pre;}
+        
         button { padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; }
         button:hover { background-color: #0056b3; }
         button.secondary { background-color: #6c757d; }
         button.danger { background-color: #dc3545; }
-
-        .tool-btn { padding: 6px 12px; background: #e2e8f0; color: #333; border: 2px solid transparent; font-weight: bold; }
+        
+        .tool-btn { padding: 6px 12px; background: #e2e8f0; color: #333; border: 2px solid transparent; font-weight: bold; border-radius:4px; cursor:pointer;}
         .tool-btn.selected { border-color: #000; box-shadow: inset 0 0 5px rgba(0,0,0,0.2); }
         .tool-btn[data-val="0"], .tool-btn[data-val="1"], .tool-btn[data-val="2"], .tool-btn[data-val="3"] { background: #cce5ff; color: #004085; }
         .tool-btn.selected[data-val="0"], .tool-btn.selected[data-val="1"], .tool-btn.selected[data-val="2"], .tool-btn.selected[data-val="3"] { background: #0056b3; color: white; border-color: #004085;}
 
         .info-box { padding: 12px; background: #e9ecef; border-radius: 4px; width: 100%; font-size: 0.95rem; box-sizing: border-box; text-align: left;}
         .possibility-list { font-size: 0.9em; color: #444; margin-top: 10px; max-height: 150px; overflow-y: auto; background: white; padding: 10px; border-radius: 4px; border: 1px solid #ddd; width: 100%; box-sizing: border-box;}
-        .db-list { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
-        .db-tag { background: #eee; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; }
+        
+        .db-group { border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; background:#fdfdfd;}
+        .db-group-title { font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;}
+        .db-shape-btns { display: flex; gap: 5px; flex-wrap: wrap; }
+        .shape-btn { padding: 4px 8px; font-size: 0.85em; background: #fff; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+        .shape-btn:hover { background: #e9ecef; }
+        .shape-btn.active-edit { background: #ffc107; border-color: #d39e00; }
 
     </style>
 </head>
@@ -86,7 +89,7 @@
                 <button class="tool-btn" data-val="2">下(↓)</button>
                 <button class="tool-btn" data-val="3">左(←)</button>
             </div>
-
+            
             <div class="grid-container" id="deduceGrid"></div>
         </div>
 
@@ -100,7 +103,7 @@
 
     <div id="tab-edit" class="tab-content">
         <div class="panel">
-            <h3>繪製新圖形</h3>
+            <h3>繪製與編輯圖形</h3>
             <div class="row-controls" id="editTools" style="margin-bottom: 10px;">
                 <button class="tool-btn selected" data-val="?">橡皮擦</button>
                 <button class="tool-btn" data-val="0">上(↑)</button>
@@ -109,61 +112,96 @@
                 <button class="tool-btn" data-val="3">左(←)</button>
             </div>
             <div class="grid-container" id="editGrid"></div>
+            
             <div class="row-controls">
-                <input type="text" id="editCode" placeholder="圖形代碼 (如 2222)" style="width: 150px;">
-                <button onclick="saveShape()">儲存至此代碼</button>
-                <button onclick="clearEditGrid()" class="secondary">清空畫布</button>
+                <input type="text" id="editCode" placeholder="圖形代碼 (如 2222)" style="width: 120px;">
+                <button onclick="saveShape()" id="saveBtn">儲存為新圖形</button>
+                <button onclick="prepareNewShape()" class="secondary">清空畫布</button>
             </div>
-            <p style="font-size: 0.8em; color: #666; margin-top: 5px;">*同一個代碼可以儲存多次，會視為該代碼的多種可能圖形。</p>
+            <p id="editStatusMsg" style="font-size: 0.85em; color: #d39e00; margin-top: 10px; font-weight:bold;"></p>
         </div>
 
         <div class="panel">
-            <h3>資料庫管理</h3>
-            <div class="db-list" id="dbCodeList"></div>
+            <h3>資料庫管理 (點擊圖形可載入編輯)</h3>
+            <div id="dbCodeList" style="width: 100%; max-height: 300px; overflow-y: auto; padding-right:5px;"></div>
+            
             <hr style="width:100%; margin:15px 0; border:0; border-top:1px solid #ddd;">
-            <p style="font-size: 0.85em; color: #666; margin: 0;">匯入/匯出 JSON</p>
-            <textarea id="dbTextarea"></textarea>
+            <p style="font-size: 0.85em; color: #666; margin: 0 0 5px 0;">產生 GitHub 永久儲存用 JSON (已壓縮排版)</p>
+            <textarea id="dbTextarea" readonly placeholder="點擊下方按鈕產生程式碼，全選複製後貼到你的 GitHub index.html 中的 PERMANENT_DB 變數覆蓋即可。"></textarea>
             <div class="row-controls" style="margin-top: 10px;">
-                <button onclick="importJSON()">匯入 JSON</button>
-                <button onclick="exportJSON()" class="secondary">匯出 JSON</button>
-                <button onclick="clearDB()" class="danger">清空自訂庫</button>
+                <button onclick="generateExportJSON()">產生壓縮 JSON</button>
+                <div style="flex:1"></div>
+                <button onclick="clearDB()" class="danger">清空自訂/微調紀錄</button>
             </div>
         </div>
     </div>
 
     <script>
-        // ================= 核心資料庫 =================
-        // 資料結構: { "代碼": [ 形狀1, 形狀2... ] }
-        // 形狀: [ {x, y, d}, ... ] (d: 0=上, 1=右, 2=下, 3=左, O=無方向)
+        // ================= 核心資料庫 (壓縮版) =================
         const PERMANENT_DB = {
+            "111": [
+                [ {x:2, y:6, d:"0"}, {x:6, y:6, d:"0"}, {x:2, y:5, d:"0"}, {x:6, y:5, d:"0"}, {x:2, y:4, d:"0"}, {x:4, y:4, d:"2"}, {x:6, y:4, d:"0"}, {x:2, y:3, d:"0"}, {x:4, y:3, d:"2"}, {x:6, y:3, d:"0"}, {x:4, y:2, d:"2"}, {x:4, y:1, d:"2"} ],
+                [ {x:6, y:6, d:"0"}, {x:4, y:5, d:"0"}, {x:6, y:5, d:"0"}, {x:2, y:4, d:"0"}, {x:4, y:4, d:"0"}, {x:6, y:4, d:"0"}, {x:2, y:3, d:"0"}, {x:4, y:3, d:"0"}, {x:6, y:3, d:"0"}, {x:2, y:2, d:"0"}, {x:4, y:2, d:"0"}, {x:2, y:1, d:"0"} ],
+                [ {x:6, y:6, d:"0"}, {x:6, y:5, d:"0"}, {x:1, y:4, d:"2"}, {x:6, y:4, d:"0"}, {x:1, y:3, d:"2"}, {x:6, y:3, d:"0"}, {x:1, y:2, d:"2"}, {x:3, y:2, d:"3"}, {x:4, y:2, d:"3"}, {x:5, y:2, d:"3"}, {x:6, y:2, d:"3"}, {x:1, y:1, d:"2"} ],
+                [ {x:2, y:6, d:"0"}, {x:2, y:5, d:"0"}, {x:6, y:5, d:"0"}, {x:2, y:4, d:"0"}, {x:6, y:4, d:"0"}, {x:2, y:3, d:"0"}, {x:6, y:3, d:"0"}, {x:6, y:2, d:"0"}, {x:1, y:1, d:"3"}, {x:2, y:1, d:"3"}, {x:3, y:1, d:"3"}, {x:4, y:1, d:"3"} ]
+            ],
+            "181": [
+                [ {x:2, y:6, d:"1"}, {x:3, y:6, d:"1"}, {x:4, y:6, d:"1"}, {x:5, y:6, d:"1"}, {x:1, y:4, d:"2"}, {x:2, y:4, d:"1"}, {x:3, y:4, d:"1"}, {x:4, y:4, d:"1"}, {x:5, y:4, d:"1"}, {x:1, y:3, d:"2"}, {x:2, y:3, d:"1"}, {x:3, y:3, d:"1"}, {x:4, y:3, d:"1"}, {x:5, y:3, d:"1"}, {x:1, y:2, d:"2"}, {x:1, y:1, d:"2"} ],
+                [ {x:2, y:6, d:"1"}, {x:3, y:6, d:"1"}, {x:4, y:6, d:"1"}, {x:5, y:6, d:"1"}, {x:2, y:4, d:"1"}, {x:3, y:4, d:"1"}, {x:4, y:4, d:"1"}, {x:5, y:4, d:"1"}, {x:2, y:3, d:"1"}, {x:3, y:3, d:"1"}, {x:4, y:3, d:"1"}, {x:5, y:3, d:"1"}, {x:2, y:1, d:"1"}, {x:3, y:1, d:"1"}, {x:4, y:1, d:"1"}, {x:5, y:1, d:"1"} ]
+            ],
+            "1122": [
+                [ {x:1, y:6, d:"1"}, {x:1, y:5, d:"1"}, {x:3, y:5, d:"2"}, {x:5, y:5, d:"0"}, {x:3, y:4, d:"2"}, {x:5, y:4, d:"0"}, {x:3, y:3, d:"2"}, {x:5, y:3, d:"0"}, {x:1, y:2, d:"3"}, {x:3, y:2, d:"2"}, {x:5, y:2, d:"0"}, {x:1, y:1, d:"3"} ],
+                [ {x:1, y:5, d:"1"}, {x:2, y:5, d:"1"}, {x:3, y:5, d:"1"}, {x:4, y:5, d:"1"}, {x:5, y:5, d:"0"}, {x:1, y:4, d:"0"}, {x:2, y:4, d:"0"}, {x:5, y:4, d:"0"}, {x:5, y:3, d:"0"}, {x:4, y:2, d:"1"}, {x:5, y:2, d:"0"}, {x:4, y:1, d:"1"} ]
+            ],
+            "1442": [
+                [ {x:3, y:6, d:"0"}, {x:4, y:6, d:"0"}, {x:2, y:5, d:"0"}, {x:3, y:5, d:"0"}, {x:4, y:5, d:"0"}, {x:6, y:5, d:"1"}, {x:2, y:4, d:"0"}, {x:6, y:4, d:"1"}, {x:2, y:3, d:"0"}, {x:2, y:2, d:"0"}, {x:4, y:2, d:"2"}, {x:5, y:2, d:"2"}, {x:4, y:1, d:"2"}, {x:5, y:1, d:"2"} ],
+                [ {x:2, y:6, d:"2"}, {x:3, y:6, d:"2"}, {x:1, y:5, d:"1"}, {x:2, y:5, d:"2"}, {x:3, y:5, d:"2"}, {x:1, y:4, d:"1"}, {x:3, y:4, d:"3"}, {x:4, y:4, d:"3"}, {x:6, y:4, d:"2"}, {x:3, y:3, d:"3"}, {x:4, y:3, d:"3"}, {x:6, y:3, d:"2"}, {x:6, y:2, d:"2"}, {x:6, y:1, d:"2"} ]
+            ],
             "2222": [
-                [
-                    {x:1, y:1, d:0}, {x:2, y:1, d:0},
-                    {x:5, y:2, d:0}, {x:6, y:2, d:0},
-                    {x:1, y:5, d:0}, {x:2, y:5, d:0},
-                    {x:4, y:4, d:1}, {x:4, y:5, d:1}
-                ]
+                [ {x:1, y:1, d:"0"}, {x:2, y:1, d:"0"}, {x:5, y:2, d:"0"}, {x:6, y:2, d:"0"}, {x:1, y:5, d:"0"}, {x:2, y:5, d:"0"}, {x:4, y:4, d:"1"}, {x:4, y:5, d:"1"} ]
             ],
             "2242": [
-                [
-                    {x:1, y:1, d:2}, {x:2, y:1, d:2},
-                    {x:1, y:4, d:3}, {x:1, y:5, d:3},
-                    {x:2, y:3, d:1}, {x:2, y:4, d:1}, {x:3, y:3, d:1}, {x:3, y:4, d:1},
-                    {x:5, y:2, d:1}, {x:5, y:3, d:1}
-                ]
+                [ {x:1, y:1, d:"2"}, {x:2, y:1, d:"2"}, {x:1, y:4, d:"3"}, {x:1, y:5, d:"3"}, {x:2, y:3, d:"1"}, {x:2, y:4, d:"1"}, {x:3, y:3, d:"1"}, {x:3, y:4, d:"1"}, {x:5, y:2, d:"1"}, {x:5, y:3, d:"1"} ]
+            ],
+            "2243": [
+                [ {x:1, y:5, d:"0"}, {x:2, y:5, d:"0"}, {x:5, y:5, d:"0"}, {x:6, y:5, d:"0"}, {x:3, y:4, d:"0"}, {x:4, y:4, d:"0"}, {x:3, y:3, d:"0"}, {x:4, y:3, d:"0"}, {x:6, y:3, d:"0"}, {x:6, y:2, d:"0"}, {x:6, y:1, d:"0"} ],
+                [ {x:1, y:5, d:"0"}, {x:2, y:5, d:"0"}, {x:5, y:5, d:"0"}, {x:6, y:5, d:"0"}, {x:3, y:3, d:"0"}, {x:4, y:3, d:"0"}, {x:6, y:3, d:"0"}, {x:3, y:2, d:"0"}, {x:4, y:2, d:"0"}, {x:6, y:2, d:"0"}, {x:6, y:1, d:"0"} ]
+            ],
+            "3226": [
+                [ {x:6, y:6, d:"0"}, {x:2, y:5, d:"0"}, {x:3, y:5, d:"0"}, {x:6, y:5, d:"0"}, {x:6, y:4, d:"0"}, {x:1, y:2, d:"1"}, {x:2, y:2, d:"1"}, {x:3, y:2, d:"1"}, {x:5, y:2, d:"1"}, {x:1, y:1, d:"1"}, {x:2, y:1, d:"1"}, {x:3, y:1, d:"1"}, {x:5, y:1, d:"1"} ]
+            ],
+            "3443": [
+                [ {x:5, y:6, d:"0"}, {x:2, y:5, d:"2"}, {x:3, y:5, d:"2"}, {x:5, y:5, d:"0"}, {x:2, y:4, d:"2"}, {x:3, y:4, d:"2"}, {x:5, y:4, d:"0"}, {x:1, y:3, d:"2"}, {x:1, y:2, d:"2"}, {x:4, y:2, d:"3"}, {x:5, y:2, d:"3"}, {x:1, y:1, d:"2"}, {x:4, y:1, d:"3"}, {x:5, y:1, d:"3"} ],
+                [ {x:2, y:6, d:"1"}, {x:3, y:6, d:"1"}, {x:5, y:6, d:"0"}, {x:2, y:5, d:"1"}, {x:3, y:5, d:"1"}, {x:5, y:5, d:"0"}, {x:1, y:4, d:"0"}, {x:5, y:4, d:"0"}, {x:1, y:3, d:"0"}, {x:3, y:3, d:"1"}, {x:4, y:3, d:"1"}, {x:1, y:2, d:"0"}, {x:3, y:2, d:"1"}, {x:4, y:2, d:"1"} ]
+            ],
+            "4444": [
+                [ {x:5, y:6, d:"2"}, {x:6, y:6, d:"2"}, {x:2, y:5, d:"0"}, {x:3, y:5, d:"0"}, {x:5, y:5, d:"2"}, {x:6, y:5, d:"2"}, {x:2, y:4, d:"0"}, {x:3, y:4, d:"0"}, {x:4, y:3, d:"3"}, {x:5, y:3, d:"3"}, {x:2, y:2, d:"1"}, {x:3, y:2, d:"1"}, {x:4, y:2, d:"3"}, {x:5, y:2, d:"3"}, {x:2, y:1, d:"1"}, {x:3, y:1, d:"1"} ],
+                [ {x:3, y:6, d:"2"}, {x:4, y:6, d:"2"}, {x:3, y:5, d:"2"}, {x:4, y:5, d:"2"}, {x:3, y:4, d:"2"}, {x:4, y:4, d:"2"}, {x:5, y:4, d:"0"}, {x:6, y:4, d:"0"}, {x:3, y:3, d:"2"}, {x:4, y:3, d:"2"}, {x:5, y:3, d:"0"}, {x:6, y:3, d:"0"}, {x:1, y:2, d:"3"}, {x:2, y:2, d:"3"}, {x:1, y:1, d:"3"}, {x:2, y:1, d:"3"} ]
+            ],
+            "6242": [
+                [ {x:1, y:5, d:"3"}, {x:4, y:5, d:"2"}, {x:5, y:5, d:"2"}, {x:1, y:4, d:"3"}, {x:4, y:4, d:"2"}, {x:5, y:4, d:"2"}, {x:1, y:2, d:"1"}, {x:2, y:2, d:"1"}, {x:3, y:2, d:"1"}, {x:5, y:2, d:"2"}, {x:6, y:2, d:"2"}, {x:1, y:1, d:"1"}, {x:2, y:1, d:"1"}, {x:3, y:1, d:"1"} ]
+            ],
+            "6464": [
+                [ {x:4, y:6, d:"1"}, {x:5, y:6, d:"1"}, {x:2, y:5, d:"0"}, {x:3, y:5, d:"0"}, {x:4, y:5, d:"1"}, {x:5, y:5, d:"1"}, {x:2, y:4, d:"0"}, {x:3, y:4, d:"0"}, {x:2, y:3, d:"0"}, {x:3, y:3, d:"0"}, {x:4, y:3, d:"1"}, {x:5, y:3, d:"1"}, {x:6, y:3, d:"1"}, {x:1, y:2, d:"3"}, {x:2, y:2, d:"3"}, {x:4, y:2, d:"1"}, {x:5, y:2, d:"1"}, {x:6, y:2, d:"1"}, {x:1, y:1, d:"3"}, {x:2, y:1, d:"3"} ]
+            ],
+            "8223": [
+                [ {x:2, y:6, d:"1"}, {x:2, y:5, d:"1"}, {x:4, y:5, d:"0"}, {x:5, y:5, d:"0"}, {x:1, y:4, d:"0"}, {x:4, y:4, d:"0"}, {x:5, y:4, d:"0"}, {x:1, y:3, d:"0"}, {x:4, y:3, d:"0"}, {x:5, y:3, d:"0"}, {x:1, y:2, d:"0"}, {x:4, y:2, d:"0"}, {x:5, y:2, d:"0"}, {x:2, y:1, d:"0"}, {x:3, y:1, d:"0"} ]
             ]
         };
 
         let localDB = JSON.parse(localStorage.getItem('advancedShapeDB')) || {};
         const GRID_SIZE = 6;
         const DIR_CHARS = { '?': '', 'X': 'X', 'O': 'O', '0': '↑', '1': '→', '2': '↓', '3': '←' };
+        
+        // 追蹤當前正在編輯的圖形索引 (-1 代表準備新增)
+        let currentEditIndex = -1;
 
-        // 取得合併資料庫
+        // 【重點修正】：取得合併資料庫的邏輯
+        // 規則：如果 localDB 有該代碼，則完全覆蓋 PERMANENT_DB 的對應代碼
         function getCombinedDB() {
-            const combined = JSON.parse(JSON.stringify(PERMANENT_DB)); // Deep copy
+            let combined = JSON.parse(JSON.stringify(PERMANENT_DB));
             for (let code in localDB) {
-                if (!combined[code]) combined[code] = [];
-                combined[code] = combined[code].concat(localDB[code]);
+                combined[code] = localDB[code];
             }
             return combined;
         }
@@ -171,13 +209,13 @@
         // ================= 初始化與 UI =================
         let currentDeduceTool = '?';
         let currentEditTool = '?';
-        let activeStates = []; // 當前符合條件的所有旋轉圖形
+        let activeStates = []; 
 
         function init() {
             createGrid('deduceGrid', 'deduce');
             createGrid('heatmapGrid', 'heatmap');
             createGrid('editGrid', 'edit');
-
+            
             setupTools('deduceTools', (val) => currentDeduceTool = val);
             setupTools('editTools', (val) => currentEditTool = val);
             updateDBListUI();
@@ -228,7 +266,6 @@
         }
 
         // ================= 旋轉與數學邏輯 =================
-        // 旋轉點 90 度順時針 times 次
         function rotatePoint(x, y, dir, times) {
             let nx = x, ny = y, ndir = dir;
             for(let i=0; i<times; i++) {
@@ -247,25 +284,20 @@
         function startDeduction() {
             const code = document.getElementById('targetCode').value.trim();
             const db = getCombinedDB();
-
+            
             if (!code || !db[code]) {
                 alert(`找不到圖形代碼: ${code}`);
                 return;
             }
 
-            // 清空推理網格
             document.querySelectorAll('.deduce-cell').forEach(c => { c.dataset.state = '?'; c.innerHTML = ''; });
-
-            // 產生該代碼所有圖形的 4 種角度
+            
             activeStates = [];
             const shapes = db[code];
             shapes.forEach((shape, shapeIdx) => {
                 for (let rot = 0; rot < 4; rot++) {
                     let rotatedPoints = shape.map(pt => rotatePoint(pt.x, pt.y, pt.d, rot));
-                    activeStates.push({
-                        name: `圖形${shapeIdx + 1} (${rot * 90}度)`,
-                        points: rotatedPoints
-                    });
+                    activeStates.push({ name: `圖形${shapeIdx + 1} (${rot * 90}度)`, points: rotatedPoints });
                 }
             });
 
@@ -278,29 +310,21 @@
                 return;
             }
 
-            // 取得網格上的條件
             let constraints = [];
             document.querySelectorAll('.deduce-cell').forEach(cell => {
                 const state = cell.dataset.state;
-                if (state !== '?') {
-                    constraints.push({ x: parseInt(cell.dataset.x), y: parseInt(cell.dataset.y), reqState: state });
-                }
+                if (state !== '?') constraints.push({ x: parseInt(cell.dataset.x), y: parseInt(cell.dataset.y), reqState: state });
             });
 
-            // 篩選符合條件的狀態
             let validStates = activeStates.filter(state => {
                 let map = {};
                 state.points.forEach(p => { map[`${p.x},${p.y}`] = p; });
 
                 for (let c of constraints) {
                     const pt = map[`${c.x},${c.y}`];
-                    if (c.reqState === 'X') {
-                        if (pt) return false; // 要空格但有東西
-                    } else if (c.reqState === 'O') {
-                        if (!pt) return false; // 要東西但沒有
-                    } else { // 0, 1, 2, 3 (方向)
-                        if (!pt || pt.d !== c.reqState) return false; // 方向不對或沒東西
-                    }
+                    if (c.reqState === 'X') { if (pt) return false; } 
+                    else if (c.reqState === 'O') { if (!pt) return false; } 
+                    else { if (!pt || pt.d !== c.reqState) return false; }
                 }
                 return true;
             });
@@ -312,61 +336,78 @@
             const heatmapCells = document.querySelectorAll('.heatmap-cell');
             const info = document.getElementById('deduceInfo');
             const list = document.getElementById('possibilityList');
-
+            
             heatmapCells.forEach(c => { c.dataset.prob = ""; c.innerHTML = ""; });
 
             if (validStates.length === 0) {
-                info.innerHTML = "<span style='color:red; font-weight:bold;'>條件衝突！沒有符合的圖形，請檢查標記是否點錯了。</span>";
+                info.innerHTML = "<span style='color:red; font-weight:bold;'>條件衝突！沒有符合的圖形，請檢查標記。</span>";
                 list.innerHTML = "";
                 return;
             }
 
-            // 計算頻率
             let freq = {};
-            validStates.forEach(state => {
-                state.points.forEach(p => {
-                    const key = `${p.x},${p.y}`;
-                    freq[key] = (freq[key] || 0) + 1;
-                });
-            });
+            validStates.forEach(state => { state.points.forEach(p => { freq[`${p.x},${p.y}`] = (freq[`${p.x},${p.y}`] || 0) + 1; }); });
 
             const total = validStates.length;
             let mustHitCoords = [];
 
             heatmapCells.forEach(cell => {
-                const key = `${cell.dataset.x},${cell.dataset.y}`;
-                const count = freq[key] || 0;
-
+                const count = freq[`${cell.dataset.x},${cell.dataset.y}`] || 0;
                 if (count > 0) {
                     const percent = Math.round((count / total) * 100);
                     cell.innerHTML = percent === 100 ? '必' : `${percent}%`;
-
-                    if (percent === 100) {
-                        cell.dataset.prob = "100";
-                        mustHitCoords.push(`(${cell.dataset.x},${cell.dataset.y})`);
-                    } else if (percent >= 75) cell.dataset.prob = "high";
+                    if (percent === 100) { cell.dataset.prob = "100"; mustHitCoords.push(`(${cell.dataset.x},${cell.dataset.y})`); } 
+                    else if (percent >= 75) cell.dataset.prob = "high";
                     else if (percent >= 50) cell.dataset.prob = "med";
                     else cell.dataset.prob = "low";
                 }
             });
 
-            let msg = `剩餘可能組合： <strong>${total}</strong> 種。<br>`;
-            if (mustHitCoords.length > 0) {
-                msg += `<span style="color:darkred; font-weight:bold;">👉 下一步建議點擊必中格子：${mustHitCoords.join(', ')}</span>`;
-            } else {
-                msg += `目前無 100% 重合的格子，請點擊機率最高的格子。`;
-            }
-            info.innerHTML = msg;
-
-            let stateStrs = validStates.map(s => s.name);
-            list.innerHTML = `<strong>剩餘可能：</strong><br>` + stateStrs.join('<br>');
+            info.innerHTML = `剩餘可能組合： <strong>${total}</strong> 種。<br>` + 
+                (mustHitCoords.length > 0 ? `<span style="color:darkred; font-weight:bold;">👉 下一步建議點擊必中格子：${mustHitCoords.join(', ')}</span>` : `目前無 100% 重合的格子，請點擊機率最高的格子。`);
+            list.innerHTML = `<strong>剩餘可能：</strong><br>` + validStates.map(s => s.name).join('<br>');
         }
 
-        // ================= 資料庫建檔邏輯 =================
+        // ================= 資料庫編輯與建檔邏輯 =================
+
+        // 點選清單中的圖形，載入到畫布準備覆寫
+        function loadEditShape(code, index) {
+            document.querySelectorAll('.edit-cell').forEach(c => { c.dataset.state = '?'; c.innerHTML = ''; });
+            document.getElementById('editCode').value = code;
+            currentEditIndex = index;
+            
+            const db = getCombinedDB();
+            const shape = db[code][index];
+            
+            shape.forEach(pt => {
+                const cell = document.querySelector(`.edit-cell[data-x="${pt.x}"][data-y="${pt.y}"]`);
+                if(cell) {
+                    cell.dataset.state = pt.d;
+                    cell.innerHTML = DIR_CHARS[pt.d];
+                }
+            });
+
+            document.getElementById('saveBtn').textContent = "覆寫儲存此圖形";
+            document.getElementById('editStatusMsg').textContent = `✏️ 正在編輯：${code} 的 圖形 ${index + 1}`;
+            
+            // 更新按鈕視覺狀態
+            document.querySelectorAll('.shape-btn').forEach(btn => btn.classList.remove('active-edit'));
+            document.getElementById(`btn-${code}-${index}`).classList.add('active-edit');
+        }
+
+        function prepareNewShape(code = "") {
+            document.querySelectorAll('.edit-cell').forEach(c => { c.dataset.state = '?'; c.innerHTML = ''; });
+            document.getElementById('editCode').value = code;
+            currentEditIndex = -1;
+            document.getElementById('saveBtn').textContent = "儲存為新圖形";
+            document.getElementById('editStatusMsg').textContent = code ? `✨ 準備為 ${code} 新增圖形` : "";
+            document.querySelectorAll('.shape-btn').forEach(btn => btn.classList.remove('active-edit'));
+        }
+
         function saveShape() {
             const code = document.getElementById('editCode').value.trim();
             if (!code) return alert("請輸入代碼！");
-
+            
             let points = [];
             document.querySelectorAll('.edit-cell').forEach(cell => {
                 const state = cell.dataset.state;
@@ -377,53 +418,96 @@
 
             if(points.length === 0) return alert("畫布是空的！");
 
+            // 【重點】：如果 localDB 沒有這個代碼，先從 PERMANENT_DB 複製過來作為基準
+            if (!localDB[code] && PERMANENT_DB[code]) {
+                localDB[code] = JSON.parse(JSON.stringify(PERMANENT_DB[code]));
+            }
             if (!localDB[code]) localDB[code] = [];
-            localDB[code].push(points);
 
+            if (currentEditIndex >= 0 && currentEditIndex < localDB[code].length) {
+                // 覆寫模式
+                localDB[code][currentEditIndex] = points;
+                alert(`已覆寫更新代碼 [${code}] 的 圖形 ${currentEditIndex + 1}！`);
+            } else {
+                // 新增模式
+                localDB[code].push(points);
+                alert(`已新增一種圖形至代碼 [${code}]！`);
+            }
+            
             localStorage.setItem('advancedShapeDB', JSON.stringify(localDB));
             updateDBListUI();
-            clearEditGrid();
-            alert(`已新增一種圖形至代碼 [${code}]！`);
-        }
-
-        function clearEditGrid() {
-            document.querySelectorAll('.edit-cell').forEach(c => { c.dataset.state = '?'; c.innerHTML = ''; });
+            prepareNewShape(); // 儲存後重置為新增模式
         }
 
         function updateDBListUI() {
             const listEl = document.getElementById('dbCodeList');
             listEl.innerHTML = '';
             const db = getCombinedDB();
-
+            
             Object.keys(db).sort().forEach(code => {
-                const tag = document.createElement('div');
-                tag.className = 'db-tag';
-                const count = db[code].length;
-                const isPerm = PERMANENT_DB.hasOwnProperty(code);
-                tag.textContent = `${code} (${count}種圖形) ${isPerm ? "🔒" : ""}`;
-                listEl.appendChild(tag);
+                const group = document.createElement('div');
+                group.className = 'db-group';
+                
+                // 判斷狀態：如果 localDB 有此代碼，表示有被自訂/微調過 (顯示 ✏️)
+                const isCustomized = localDB.hasOwnProperty(code);
+                
+                const title = document.createElement('div');
+                title.className = 'db-group-title';
+                title.innerHTML = `<span>代碼：<strong>${code}</strong> <span style="font-size:0.8em">${isCustomized ? '✏️ (含微調)' : '🔒 (內建)'}</span></span>`;
+                group.appendChild(title);
+
+                const btnContainer = document.createElement('div');
+                btnContainer.className = 'db-shape-btns';
+
+                db[code].forEach((shape, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'shape-btn';
+                    btn.id = `btn-${code}-${idx}`;
+                    btn.textContent = `圖形 ${idx + 1}`;
+                    btn.onclick = () => loadEditShape(code, idx);
+                    btnContainer.appendChild(btn);
+                });
+
+                const addBtn = document.createElement('button');
+                addBtn.className = 'shape-btn';
+                addBtn.style.background = '#d4edda';
+                addBtn.textContent = '+ 新增圖形';
+                addBtn.onclick = () => prepareNewShape(code);
+                btnContainer.appendChild(addBtn);
+
+                group.appendChild(btnContainer);
+                listEl.appendChild(group);
             });
         }
 
-        function exportJSON() {
-            document.getElementById('dbTextarea').value = JSON.stringify(getCombinedDB(), null, 2);
-        }
-
-        function importJSON() {
-            try {
-                const data = JSON.parse(document.getElementById('dbTextarea').value);
-                localDB = Object.assign(localDB, data);
-                localStorage.setItem('advancedShapeDB', JSON.stringify(localDB));
-                updateDBListUI();
-                alert("匯入成功！");
-            } catch(e) { alert("JSON 格式錯誤！"); }
+        // ================= 壓縮匯出 JSON 邏輯 =================
+        function generateExportJSON() {
+            const db = getCombinedDB();
+            let lines = ["const PERMANENT_DB = {"];
+            let codes = Object.keys(db).sort();
+            
+            codes.forEach((code, i) => {
+                lines.push(`    "${code}": [`);
+                db[code].forEach((shape, j) => {
+                    // 轉為字串並移除 key 旁邊的引號以節省空間
+                    let shapeStr = JSON.stringify(shape).replace(/"x":/g, 'x:').replace(/"y":/g, 'y:').replace(/"d":/g, 'd:');
+                    lines.push(`        ${shapeStr}${j < db[code].length - 1 ? ',' : ''}`);
+                });
+                lines.push(`    ]${i < codes.length - 1 ? ',' : ''}`);
+            });
+            lines.push("};");
+            
+            document.getElementById('dbTextarea').value = lines.join('\n');
+            alert("已產生壓縮 JSON，請複製下方框框內的全部內容，覆蓋 GitHub 程式碼中的 PERMANENT_DB 變數！");
         }
 
         function clearDB() {
-            if (confirm("確定要清空您自己建立的資料庫嗎？(帶有 🔒 的內建資料不會被刪除)")) {
+            if (confirm("這將會清除您在瀏覽器上做的所有新增與微調！\n(如果有按產生 JSON 並更新到 GitHub 的話就不會受影響)。\n確定要清空嗎？")) {
                 localDB = {};
                 localStorage.setItem('advancedShapeDB', JSON.stringify(localDB));
                 updateDBListUI();
+                prepareNewShape();
+                document.getElementById('dbTextarea').value = "";
             }
         }
 
